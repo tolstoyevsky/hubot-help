@@ -85,6 +85,55 @@ module.exports = (robot) => {
     }
   })
 
+  robot.listen(msg => {
+    if (msg.room === 'general') return false
+    const regExps = robot.listeners.map(item => {
+      if (item.regex && item.regex.source) {
+        return item.regex
+      }
+    }).filter(item => item)
+    for (const reg of regExps) {
+      const match = msg.text.match(reg)
+      if (match && match[0]) {
+        return false
+      }
+    }
+
+    return true
+  }, {}, async msg => {
+    const message = msg.message.text.replace('rocketbot ', '')
+    const robotName = robot.alias || robot.name
+    const ingnorWords = new RegExp(`${robotName} |\\s<.*>|\\s@.*|\\*`, 'g')
+    const isAdmin = await routines.isAdmin(robot, msg.message.user.name)
+
+    const filteredCommands = []
+    let beginAdmin = false
+    for (const c of getHelpCommands(robot)) {
+      if (c === 'begin admin') {
+        beginAdmin = true
+      }
+
+      if ((!isAdmin && !beginAdmin) || isAdmin) {
+        filteredCommands.push(c)
+      }
+
+      if (c === 'end admin') {
+        beginAdmin = false
+      }
+    }
+
+    let commands = filteredCommands
+        .filter(command => !command.match(/^begin|^end/i))
+        .map(command => command.slice(0, command.indexOf('-') - 1))
+        .filter(command => spellCheckers(message, command.replace(ingnorWords, '')))
+
+    if (commands.length) {
+      msg.send(`Может ты имел ввиду:\n${commands.map(command => `${command}`).join('\n')}`)
+    } else {
+      msg.send('Я не знаю такой команды')
+    }
+  })
+
   if (process.env.HUBOT_HELP_DISABLE_HTTP == null) {
     return robot.router.get(`/${robot.name}/help`, (req, res) => {
       let msg
@@ -253,4 +302,60 @@ var hiddenCommandsPattern = function hiddenCommandsPattern () {
   if (hiddenCommands) {
     return new RegExp(`^hubot (?:${hiddenCommands != null ? hiddenCommands.join('|') : undefined}) - `)
   }
+}
+
+/**
+ * Сhecks for typos by comparing two strings.
+ *
+ * @param {string} checked - The string that is checked for typos.
+ * @param {string} correct - String that assumes the correct word without a typo.
+ *
+ * @returns {boolean}
+ */
+var spellCheckers = function spellCheckers (checked, correct) {
+  let characterShift = []
+  let check
+  let checkedWord = checked.toLowerCase().split('')
+  let correctWord = correct.toLowerCase().split('')
+  let expectedWord
+  let intersections = []
+  let lengthWord = correct.length
+  let pass
+  if ((checked.length - correct.length) > 4) return false
+  if (correctWord.length - checkedWord.length > 3) return false
+  for (let i = 0; i <= lengthWord - 1; i++) {
+    if (pass === checkedWord[i]) {
+      for (let j = -1; j >= -2; j--) {
+        if (correctWord[i] === checkedWord[i + j]) intersections.push(j)
+      }
+    }
+    if (intersections.length - 1 === i) continue
+    for (let j = -1 * (intersections[i - 1] === null || intersections[i - 1] === -1); j <= 2; j++) {
+      if (correctWord[i] === checkedWord[i + j] && i + j <= lengthWord - 1) {
+        intersections.push(j)
+        if (j > 0) pass = checkedWord[i + j]
+        break
+      }
+    }
+    if (intersections.length - 1 < i) {
+      intersections.push(null)
+      if (intersections[i - 1] !== null && intersections[i - 2] !== null) {
+        characterShift.push(correctWord[i])
+      }
+    }
+  }
+  intersections.push('', '', '')
+  intersections = intersections.map((iteam, index) => iteam === null ? null : iteam + index)
+
+  expectedWord = intersections.map(word => {
+    if (word !== null) {
+      return checkedWord[word]
+    } else if (characterShift.length) {
+      return characterShift.shift()
+    }
+  }).join('')
+  if (expectedWord.length <= 2) return false
+  check = new RegExp(expectedWord.slice(0, correct.length), 'i')
+
+  return !!correct.match(check)
 }
