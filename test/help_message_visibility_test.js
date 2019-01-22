@@ -33,7 +33,7 @@ describe('help', () => describe('message visibility', () => {
               'attachments': [
                 {
                   'color': '#459d87',
-                  'text': '*hubot help *- Displays all of the help commands that this bot knows about.\n*hubot help <query> *- Displays all help commands that match <query>.',
+                  'text': '**hubot help** - Displays all of the help commands that this bot knows about.\n**hubot help <query>** - Displays all help commands that match <query>.',
                   'title': 'Other commands',
                   'collapsed': true
                 }
