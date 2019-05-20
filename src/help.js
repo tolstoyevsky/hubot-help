@@ -190,7 +190,8 @@ var filterStatus = async function filterStatus (robot, groups, userName) {
     let commands = groups[group]
     let sortForStatus = groupByMarkerGroupName(robot, commands, 'admin')
     let groupAdmin = (isAdmin && ('' in sortForStatus)) ? ['\nAdmin only:'].concat(sortForStatus['']) : []
-    groups[group] = [...sortForStatus['Other commands'], ...groupAdmin]
+    const regularCommands = sortForStatus['Other commands'] || []
+    groups[group] = [...regularCommands, ...groupAdmin]
   }
   return groups
 }
@@ -208,10 +209,15 @@ var makeRichMessage = function makeRichMessage (groupCommand) {
     let commandText
     commandText = groupCommand[group]
 
+    // Skip empty commands block
+    if (!commandText.length) {
+      return
+    }
+
     result.push({
       color: '#459d87',
       title: group,
-      text: commandText.join('\n'),
+      text: commandText.join('\n').trim(),
       collapsed: true
     })
   }
